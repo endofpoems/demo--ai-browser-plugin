@@ -1,0 +1,2 @@
+APIkey: sk-9cfea97738d5456998c99d009ece3887
+Baseurl: https://api.deepseek.com
