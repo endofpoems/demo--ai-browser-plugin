@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>思维导图 - 页面总结</title>
+  <link rel="stylesheet" href="mindmap.css">
+</head>
+<body>
+  <div class="mm-container">
+    <!-- Header -->
+    <header class="mm-header">
+      <div class="mm-header-left">
+        <h1>🧠 思维导图</h1>
+        <span class="mm-page-title" id="pageTitle"></span>
+      </div>
+      <div class="mm-header-right">
+        <button class="mm-btn mm-btn-download" id="btnDownload">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载 MD
+        </button>
+        <button class="mm-btn mm-btn-back" id="btnBack">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          返回
+        </button>
+      </div>
+    </header>
+
+    <!-- Mind Map SVG Area -->
+    <main class="mm-main">
+      <div class="mm-canvas" id="mindmapCanvas">
+        <div class="mm-empty" id="mmEmpty">
+          <div class="mm-empty-icon">🗺️</div>
+          <p>正在生成思维导图...</p>
+        </div>
+      </div>
+
+      <!-- Summary text below mind map -->
+      <div class="mm-summary" id="mmSummary" style="display:none;">
+        <h2>📝 总结文本</h2>
+        <div class="mm-summary-content" id="mmSummaryContent"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../lib/mindmap-render.js"></script>
+  <script src="mindmap.js"></script>
+</body>
+</html>

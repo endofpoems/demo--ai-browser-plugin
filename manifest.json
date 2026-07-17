@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "AI 网页学习助手",
+  "version": "1.0.0",
+  "description": "AI驱动的网页文档学习插件，支持页面总结、划词总结、思维导图生成与MD文件导出",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/marked.min.js", "content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "AI 网页学习助手",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_page": "settings/settings.html",
+  "commands": {
+    "page-summary": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "触发页面总结"
+    },
+    "toggle-word-summary": {
+      "suggested_key": {
+        "default": "Alt+W"
+      },
+      "description": "开启/关闭划词总结"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/*", "mindmap/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
