@@ -6,35 +6,51 @@
   <title>思维导图 - 页面总结</title>
   <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif; background: #f8fafc; color: #1f2937; min-height: 100vh; display: flex; }
+body { font-family: 'Inter','Microsoft YaHei','PingFang SC',sans-serif; background: linear-gradient(180deg, #0b1120, #111827); color: #e2e8f0; min-height: 100vh; display: flex; }
 .mm-container { flex: 1; display: flex; flex-direction: column; height: 100vh; }
-.mm-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: #fff; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+.mm-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+}
 .mm-header-left { display: flex; align-items: center; gap: 12px; }
-.mm-header-left h1 { font-size: 20px; font-weight: 700; color: #1f2937; }
-.mm-page-title { font-size: 13px; color: #9ca3af; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-header-left h1 { font-size: 19px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.mm-page-title { font-size: 13px; color: #64748b; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mm-header-right { display: flex; gap: 10px; }
-.mm-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; color: #374151; }
-.mm-btn:hover { background: #f9fafb; border-color: #d1d5db; }
-#btnDownload { background: linear-gradient(135deg, #10b981, #059669); color: #fff; border-color: transparent; }
-#btnDownload:hover { background: linear-gradient(135deg, #059669, #047857); }
-#btnDownload:disabled { opacity: 0.6; }
+.mm-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+  background: rgba(255,255,255,0.03); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: inherit; color: #cbd5e1;
+}
+.mm-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(129,140,248,0.25); }
+#btnDownload { background: linear-gradient(135deg, #10b981, #059669); color: #fff; border-color: transparent; box-shadow: 0 0 20px rgba(16,185,129,0.15); }
+#btnDownload:hover { background: linear-gradient(135deg, #059669, #047857); box-shadow: 0 0 25px rgba(16,185,129,0.3); }
+#btnDownload:disabled { opacity: 0.5; }
 .mm-main { flex: 1; display: flex; flex-direction: column; overflow: auto; }
-.mm-canvas { flex: 1; min-height: 400px; padding: 30px; display: flex; align-items: center; justify-content: center; overflow: auto; background: #fff; margin: 16px; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.mm-canvas {
+  flex: 1; min-height: 400px; padding: 30px; display: flex; align-items: center; justify-content: center;
+  overflow: auto; background: rgba(255,255,255,0.02); margin: 16px;
+  border-radius: 14px; border: 1px solid rgba(255,255,255,0.04);
+}
 .mm-canvas svg { max-width: 100%; }
-.mm-empty { text-align: center; color: #9ca3af; }
-.mm-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.mm-empty { text-align: center; color: #475569; }
+.mm-empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
 .mm-empty p { font-size: 14px; }
-.mm-summary { padding: 24px; background: #fff; margin: 0 16px 16px; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: none; }
-.mm-summary h2 { font-size: 18px; font-weight: 700; margin-bottom: 14px; color: #1f2937; }
-.mm-summary-content { font-size: 14px; line-height: 1.8; color: #4b5563; }
-.mm-summary-content h1 { font-size: 20px; margin: 12px 0 8px; color: #1f2937; }
-.mm-summary-content h2 { font-size: 17px; margin: 10px 0 6px; color: #374151; }
-.mm-summary-content h3 { font-size: 15px; margin: 8px 0 4px; color: #4b5563; }
-.mm-canvas::-webkit-scrollbar,.mm-main::-webkit-scrollbar { width: 6px; height: 6px; }
+.mm-summary {
+  padding: 24px; background: rgba(255,255,255,0.02); margin: 0 16px 16px;
+  border-radius: 14px; border: 1px solid rgba(255,255,255,0.04); display: none;
+}
+.mm-summary h2 { font-size: 17px; font-weight: 700; margin-bottom: 14px; color: #e2e8f0; }
+.mm-summary-content { font-size: 14px; line-height: 1.85; color: #94a3b8; }
+.mm-summary-content h1 { font-size: 19px; margin: 14px 0 8px; color: #e2e8f0; }
+.mm-summary-content h2 { font-size: 16px; margin: 12px 0 6px; color: #cbd5e1; }
+.mm-summary-content h3 { font-size: 14px; margin: 10px 0 4px; color: #94a3b8; }
+.mm-canvas::-webkit-scrollbar,.mm-main::-webkit-scrollbar { width: 4px; height: 4px; }
 .mm-canvas::-webkit-scrollbar-track,.mm-main::-webkit-scrollbar-track { background: transparent; }
-.mm-canvas::-webkit-scrollbar-thumb,.mm-main::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-.mm-canvas::-webkit-scrollbar-thumb:hover,.mm-main::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-.mm-canvas svg g:hover rect { filter: brightness(1.1) drop-shadow(3px 3px 6px rgba(0,0,0,0.3)); transition: all 0.2s ease; }
+.mm-canvas::-webkit-scrollbar-thumb,.mm-main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+.mm-canvas::-webkit-scrollbar-thumb:hover,.mm-main::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+.mm-canvas svg g:hover rect { filter: brightness(1.15) drop-shadow(0 0 12px rgba(99,102,241,0.3)); transition: all 0.2s ease; }
 .mm-canvas svg g { cursor: pointer; }
   </style>
 </head>
