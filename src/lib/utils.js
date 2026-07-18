@@ -69,7 +69,13 @@ export function parseSummaryResult(result) {
   }
 }
 
-/** 解析思维导图 Markdown 为树形结构（支持 # 标题和 - 列表格式） */
+/**
+ * 解析思维导图 Markdown 为带语义类型的树形结构
+ * 支持格式：# 标题 / ## 🔍 维度名 (type) / ### 条目 / - 列表
+ * 提取 icon + 语义类型 + 节点名
+ * @param {string} mdText - AI 返回的思维导图 Markdown
+ * @returns {Array<{ name, children, icon?, type? }>}
+ */
 export function parseMindmapMarkdown(mdText) {
   if (!mdText) return []
 
@@ -77,18 +83,41 @@ export function parseMindmapMarkdown(mdText) {
   const root = { name: 'Root', children: [] }
   const stack = [{ node: root, level: -1 }]
 
+  // 节点类型 ↔ 颜色映射
+  const TYPE_COLORS = {
+    what: '#6366f1', why: '#8b5cf6', scenario: '#10b981',
+    advantage: '#f59e0b', disadvantage: '#ef4444',
+    point: '#3b82f6', relation: '#ec4899',
+    default: '#6366f1'
+  }
+
   for (const line of lines) {
     const trimmed = line.trim()
     if (!trimmed) continue
     if (trimmed === '## 思维导图' || trimmed === '# 思维导图') continue
 
-    let name = ''
-    let level = 0
+    let name = '', level = 0, icon = '', type = ''
 
     const headerMatch = trimmed.match(/^(#{1,6})\s+(.+)/)
     if (headerMatch) {
       level = headerMatch[1].length
-      name = headerMatch[2].replace(/\*\*/g, '').replace(/\*/g, '').trim()
+      let raw = headerMatch[2].replace(/\*\*/g, '').replace(/\*/g, '').trim()
+
+      // 提取类型标记 (type)
+      const typeMatch = raw.match(/\((\w+)\)$/)
+      if (typeMatch) {
+        type = typeMatch[1].toLowerCase()
+        raw = raw.replace(/\s*\(\w+\)$/, '').trim()
+      }
+
+      // 提取图标（## 层级的 emoji 作为 category icon）
+      const iconMatch = raw.match(/^([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2702}-\u{27B0}\u{1F600}-\u{1F64F}\u{2702}-\u{27B0}\u{1F680}-\u{1F6FF}\u{24C2}-\u{1F251}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]\u{FE0F}?\s*)/u)
+      if (iconMatch) {
+        icon = iconMatch[1].trim()
+        raw = raw.substring(iconMatch[1].length).trim()
+      }
+
+      name = raw
     } else {
       const listMatch = trimmed.match(/^[\-\*]\s+(.+)/)
       if (listMatch) {
@@ -102,7 +131,7 @@ export function parseMindmapMarkdown(mdText) {
 
     if (!name) continue
 
-    const newNode = { name, children: [] }
+    const newNode = { name, children: [], icon, type, color: TYPE_COLORS[type] || TYPE_COLORS.default }
     while (stack.length > 1 && stack[stack.length - 1].level >= level) {
       stack.pop()
     }

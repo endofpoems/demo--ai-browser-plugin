@@ -84,8 +84,20 @@
         <div v-if="mindmapLoading" class="ai-mindmap-loading">
           <span class="ai-tooltip-spinner"></span>正在生成思维导图...
         </div>
-        <div v-else-if="mindmapSvgContent" class="ai-mindmap-svg-wrap" v-html="mindmapSvgContent"></div>
+        <div v-else-if="mindmapSvgContent" class="ai-mindmap-svg-wrap"
+          @wheel.prevent="onMindmapWheel"
+          @mousedown="onMindmapPanStart"
+          @click="onMindmapSvgClick">
+          <div class="ai-mindmap-svg-inner" :style="{ transform: `scale(${mindmapSvgScale}) translate(${mindmapSvgTx}px, ${mindmapSvgTy}px)`, transformOrigin: 'center center' }" v-html="mindmapSvgContent"></div>
+        </div>
         <div v-else class="ai-mindmap-empty">暂无思维导图数据</div>
+      </div>
+      <!-- 缩放控制 -->
+      <div v-if="mindmapSvgContent && !mindmapLoading" class="ai-mindmap-zoom-bar">
+        <button @click="mindmapSvgScale = Math.max(0.4, mindmapSvgScale - 0.2)" title="缩小">−</button>
+        <span>{{ Math.round(mindmapSvgScale * 100) }}%</span>
+        <button @click="mindmapSvgScale = Math.min(2.5, mindmapSvgScale + 0.2)" title="放大">+</button>
+        <button @click="resetMindmapView" title="重置">↺</button>
       </div>
     </div>
   </div>
@@ -253,7 +265,7 @@ function onResizeEnd() {
   document.removeEventListener('mousemove', onResizeMove)
   document.removeEventListener('mouseup', onResizeEnd)
   updateArrowDirection()
-  if (showMindmapPanel.value) syncMindmapPosition()
+  if (showMindmapPanel.value) { syncMindmapPosition(); reRenderMindmap() }
 }
 
 // ====== 箭头方向 ======
@@ -268,12 +280,16 @@ function updateArrowDirection() {
   showRightArrow.value = centerX < window.innerWidth / 2
 }
 
-// ====== 思维导图（放射状 + 跟随Resize + 缓存） ======
+// ====== 思维导图（放射状 + 自适应 + 交互 + 缓存） ======
 const showMindmapPanel = ref(false)
 const mindmapLoading = ref(false)
 const mindmapSvgContent = ref('')
 const mindmapAnimClass = ref('')
 const mindmapSlideStyle = reactive({ left: '0px', top: '5%', width: '0px', height: '90%' })
+const mindmapCollapsed = ref(new Set())       // 收起节点的 path（如 "0", "1-2"）
+const mindmapSvgScale = ref(1)                // 缩放比例
+const mindmapSvgTx = ref(0)                   // 平移 X
+const mindmapSvgTy = ref(0)                   // 平移 Y
 
 let cachedMdContent = ''
 let cachedMindmapText = ''
@@ -281,12 +297,14 @@ let cachedPageMeta = null
 let cachedSummaryText = ''
 let cachedMindmapSvg = ''    // 缓存已渲染的 SVG，再次打开不重载
 let cachedMindmapIsTech = false
+let cachedMindmapTree = null // 缓存的树数据（用于重渲染）
+let mindmapPanStart = null   // 拖拽起始 { x, y, tx, ty }
 
-/** 思维导图跟随面板同步位置+尺寸 */
+/** 思维导图跟随面板同步位置+尺寸（仅更新位置，不重渲染） */
 function syncMindmapPosition() {
   if (!panelRef.value || !showMindmapPanel.value) return
   const pr = panelRef.value.getBoundingClientRect()
-  const mmW = pr.width // 导图宽度跟随面板宽度
+  const mmW = pr.width
   mindmapSlideStyle.width = mmW + 'px'
   if (mindmapAnimClass.value === 'ai-mindmap-expand-right') {
     mindmapSlideStyle.left = (pr.right + 4) + 'px'
@@ -295,19 +313,10 @@ function syncMindmapPosition() {
   }
   mindmapSlideStyle.top = pr.top + 'px'
   mindmapSlideStyle.height = pr.height + 'px'
-  // 重新渲染以适应新尺寸
-  if (cachedMindmapText) {
-    const treeData = parseMindmapMarkdown(cachedMindmapText)
-    if (treeData && treeData.length > 0) {
-      const finalTree = cachedMindmapIsTech ? treeData : limitTreeNodes(treeData, 10)
-      cachedMindmapSvg = renderMindmapRadial(finalTree)
-      if (!mindmapLoading.value) mindmapSvgContent.value = cachedMindmapSvg
-    }
-  }
 }
 
 function hasTechTerms(text) {
-  const techs = ['框架','架构','方案','技术','算法','协议','引擎','平台','系统','模式','模型','组件','库','工具','中间件','framework','architecture','pattern','algorithm','protocol','Vue','React','Angular','Node','Spring','Django','Flask','Kubernetes','Docker','Redis','MySQL','MongoDB','GraphQL','REST','gRPC','WebSocket','HTTP','TCP','微服务','分布式','容器','虚拟','云计算','AI','ML','深度学习','神经网络']
+  const techs = ['框架', '架构', '方案', '技术', '算法', '协议', '引擎', '平台', '系统', '模式', '模型', '组件', '库', '工具', '中间件', 'framework', 'architecture', 'pattern', 'algorithm', 'protocol', 'Vue', 'React', 'Angular', 'Node', 'Spring', 'Django', 'Flask', 'Kubernetes', 'Docker', 'Redis', 'MySQL', 'MongoDB', 'GraphQL', 'REST', 'gRPC', 'WebSocket', 'HTTP', 'TCP', '微服务', '分布式', '容器', '虚拟', '云计算', 'AI', 'ML', '深度学习', '神经网络']
   return techs.some(p => text.toLowerCase().includes(p.toLowerCase()))
 }
 
@@ -322,7 +331,7 @@ async function doPageSummary() {
     cachedMindmapText = mindmapText
     cachedPageMeta = pageMeta
     cachedSummaryText = summaryText
-    cachedMindmapSvg = '' // 清除缓存
+    cachedMindmapSvg = ''; cachedMindmapTree = null
     resultHtml.value = parseMarkdown(summaryText)
     showOverlay.value = false; showPanel.value = true; downloadDone.value = false
     nextTick(() => updateArrowDirection())
@@ -338,10 +347,8 @@ async function toggleMindmap() {
     if (!panelRef.value) { showMindmapPanel.value = false; return }
     const pr = panelRef.value.getBoundingClientRect()
     if (mindmapAnimClass.value === 'ai-mindmap-expand-right') {
-      // 面板在左边，导图在右边 → 向左滑回收回
       mindmapSlideStyle.left = pr.right + 'px'
     } else {
-      // 面板在右边，导图在左边 → 向右滑回收回
       mindmapSlideStyle.left = (pr.left - 0) + 'px'
     }
     mindmapSlideStyle.width = '0px'
@@ -369,6 +376,8 @@ async function toggleMindmap() {
   // 有缓存直接显示
   if (cachedMindmapSvg) {
     mindmapSvgContent.value = cachedMindmapSvg
+    mindmapCollapsed.value = new Set()
+    mindmapSvgScale.value = 1; mindmapSvgTx.value = 0; mindmapSvgTy.value = 0
     return
   }
 
@@ -382,15 +391,18 @@ async function toggleMindmap() {
     cachedMindmapText = mindmapMd
     const treeData = parseMindmapMarkdown(mindmapMd)
     if (treeData && treeData.length > 0) {
-      const finalTree = cachedMindmapIsTech ? treeData : limitTreeNodes(treeData, 10)
-      cachedMindmapSvg = renderMindmapRadial(finalTree)
+      cachedMindmapTree = cachedMindmapIsTech ? treeData : limitTreeNodes(treeData, 10)
+      cachedMindmapSvg = renderMindmapTree(cachedMindmapTree, pr.width, pr.height, new Set())
       mindmapSvgContent.value = cachedMindmapSvg
+      mindmapCollapsed.value = new Set()
+      mindmapSvgScale.value = 1; mindmapSvgTx.value = 0; mindmapSvgTy.value = 0
     }
   } catch (err) {
     if (cachedMindmapText) {
       const treeData = parseMindmapMarkdown(cachedMindmapText)
       if (treeData && treeData.length > 0) {
-        cachedMindmapSvg = renderMindmapRadial(treeData)
+        cachedMindmapTree = treeData
+        cachedMindmapSvg = renderMindmapTree(cachedMindmapTree, pr.width, pr.height, new Set())
         mindmapSvgContent.value = cachedMindmapSvg
       }
     }
@@ -398,12 +410,13 @@ async function toggleMindmap() {
   } finally { mindmapLoading.value = false }
 }
 
+/** 限制非技术内容节点数 */
 function limitTreeNodes(tree, maxCount) {
   if (!tree || tree.length === 0) return tree
   const result = []; let count = 0
   function clone(node) {
     if (count >= maxCount) return null
-    count++; const copy = { name: node.name, children: [] }
+    count++; const copy = { name: node.name, children: [], icon: node.icon, type: node.type, color: node.color }
     if (node.children) for (const c of node.children) { const cc = clone(c); if (cc) copy.children.push(cc) }
     return copy
   }
@@ -411,86 +424,254 @@ function limitTreeNodes(tree, maxCount) {
   return result
 }
 
-// ====== 放射状 SVG 渲染器 ======
+/** 名称截断：超过 maxLen 汉字截断加 ... */
+function truncateNodeName(name, maxLen = 8) {
+  if (!name) return ''
+  return name.length > maxLen ? name.substring(0, maxLen) + '..' : name
+}
+
+// ====== 树状 SVG 渲染器（自适应 + 防重叠 + 语义着色 + 动画） ======
 let svgFilterCounter = 0
-const RADIAL_COLORS = ['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6','#f97316','#84cc16']
+const TYPE_COLORS = {
+  what: '#6366f1', why: '#8b5cf6', scenario: '#10b981',
+  advantage: '#f59e0b', disadvantage: '#ef4444',
+  point: '#3b82f6', relation: '#ec4899'
+}
+const LEVEL_COLORS = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#84cc16']
 
-function renderMindmapRadial(treeData) {
+function renderMindmapTree(treeData, containerW, containerH, collapsed) {
+  if (!treeData || treeData.length === 0) return ''
   const filterId = 'mm-shadow-' + (svgFilterCounter++)
-  const cx = 400, cy = 360, nodeW = 140, nodeH = 38
-  const levelRadii = [0, 120, 240, 360] // 每层半径
+  const coll = collapsed || new Set()
 
-  // BFS 分层
-  const layers = []
-  const parentMap = new Map() // child -> parent
-  const queue = treeData.map(node => ({ node, depth: 0, parent: null }))
-  while (queue.length) {
-    const { node, depth, parent } = queue.shift()
-    if (!layers[depth]) layers[depth] = []
-    layers[depth].push(node)
-    if (parent) parentMap.set(node, parent)
-    if (node.children) node.children.forEach(c => queue.push({ node: c, depth: depth + 1, parent: node }))
-  }
-
-  // 计算节点坐标
-  const nodePos = new Map() // node -> { x, y }
-  for (let d = 0; d < layers.length; d++) {
-    const nodes = layers[d]
-    const r = levelRadii[Math.min(d, levelRadii.length - 1)]
-    const count = nodes.length
-    const startAngle = d === 1 ? -Math.PI / 2 : -Math.PI / 2 // 从顶部开始
-    for (let i = 0; i < count; i++) {
-      const angle = startAngle + (2 * Math.PI * i) / Math.max(count, 1)
-      const nx = cx + r * Math.cos(angle)
-      const ny = cy + r * Math.sin(angle)
-      if (d === 0) { nodePos.set(nodes[i], { x: cx - nodeW / 2, y: cy - nodeH / 2 }) }
-      else { nodePos.set(nodes[i], { x: nx - nodeW / 2, y: ny - nodeH / 2 }) }
-    }
-  }
-
-  const svgW = 800, svgH = 720
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" height="100%" style="overflow:visible">`
-  svg += `<defs><filter id="${filterId}"><feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.25"/></filter></defs>`
-
-  // 背景圆环（装饰）
-  for (let i = 1; i < levelRadii.length; i++) {
-    svg += `<circle cx="${cx}" cy="${cy}" r="${levelRadii[i]}" fill="none" stroke="rgba(129,140,248,0.08)" stroke-width="1" stroke-dasharray="4 4"/>`
-  }
-
-  // 连线
-  for (const [child, parent] of parentMap) {
-    const pp = nodePos.get(parent), cp = nodePos.get(child)
-    if (!pp || !cp) continue
-    const px = pp.x + nodeW / 2, py = pp.y + nodeH / 2
-    const cx2 = cp.x + nodeW / 2, cy2 = cp.y + nodeH / 2
-    const midX = (px + cx2) / 2, midY = (py + cy2) / 2
-    svg += `<path d="M ${px} ${py} Q ${midX} ${midY} ${cx2} ${cy2}" stroke="rgba(129,140,248,0.25)" stroke-width="1.5" fill="none"/>`
-  }
-
-  // 节点
-  function darken(hex, f) {
-    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16)
-    return '#' + [r,g,b].map(v => Math.round(v*(1-f)).toString(16).padStart(2,'0')).join('')
-  }
-
-  for (let d = 0; d < layers.length; d++) {
-    for (const node of layers[d]) {
-      const pos = nodePos.get(node)
-      if (!pos) continue
-      const color = RADIAL_COLORS[Math.min(d, RADIAL_COLORS.length - 1)]
-      const maxChars = Math.floor(nodeW / 12) - 1
-      let tc
-      if (node.name.length > maxChars) {
-        tc = `<text x="${pos.x + nodeW/2}" y="${pos.y + nodeH/2 - 2}" text-anchor="middle" fill="#fff" font-size="12" font-family="Microsoft YaHei,PingFang SC,sans-serif" font-weight="${d===0?'700':'500'}">${node.name.substring(0,maxChars)}<tspan x="${pos.x + nodeW/2}" dy="14">${(node.name.substring(maxChars,maxChars*2)||'').substring(0,maxChars)}</tspan></text>`
-      } else {
-        tc = `<text x="${pos.x + nodeW/2}" y="${pos.y + nodeH/2 + 4}" text-anchor="middle" fill="#fff" font-size="12" font-family="Microsoft YaHei,PingFang SC,sans-serif" font-weight="${d===0?'700':'500'}">${node.name}</text>`
+  // 计算最大深度
+  function calcDepth(nodes, pathPrefix) {
+    if (!nodes || nodes.length === 0) return 0
+    let max = 1
+    for (let i = 0; i < nodes.length; i++) {
+      const path = pathPrefix ? pathPrefix + '-' + i : String(i)
+      if (nodes[i].children && nodes[i].children.length > 0 && !coll.has(path)) {
+        max = Math.max(max, 1 + calcDepth(nodes[i].children, path))
       }
-      svg += `<g><rect x="${pos.x}" y="${pos.y}" width="${nodeW}" height="${nodeH}" rx="${d===0?22:10}" fill="${color}" stroke="${darken(color,0.15)}" stroke-width="1.5" filter="url(#${filterId})"/>${tc}</g>`
     }
+    return max
+  }
+  const maxD = calcDepth(treeData, '')
+
+  // 自适应参数
+  const paddingLeft = 36, paddingTop = 36, paddingRight = 36, paddingBottom = 36
+  const availW = containerW - paddingLeft - paddingRight
+  const availH = containerH - paddingTop - paddingBottom
+  const hGap = Math.max(30, availW / Math.max(maxD + 1, 2) * 0.6)
+  const nodeW = Math.max(90, Math.min(155, (availW - hGap * maxD) / Math.max(maxD, 1)))
+  const nodeH = Math.max(30, nodeW * 0.32)
+  const vGap = Math.max(10, nodeH * 0.4)
+  const fontSize = Math.max(11, Math.min(13, nodeW / 11))
+
+  // 计算子树跨度（叶子数）
+  function calcSpan(nodes, pathPrefix) {
+    let total = 0
+    for (let i = 0; i < nodes.length; i++) {
+      const path = pathPrefix ? pathPrefix + '-' + i : String(i)
+      const node = nodes[i]
+      if (node.children && node.children.length > 0 && !coll.has(path)) {
+        total += calcSpan(node.children, path)
+      } else {
+        total += 1
+      }
+    }
+    return Math.max(total, 1)
+  }
+  const totalSpan = calcSpan(treeData, '')
+  const totalTreeH = totalSpan * (nodeH + vGap) - vGap
+
+  // 递归布局节点
+  const nodePos = new Map()
+  const parentMap = new Map()
+  const nodePathMap = new Map()
+
+  function layoutNodes(nodes, depth, startY, pathPrefix) {
+    let curY = startY
+    for (let i = 0; i < nodes.length; i++) {
+      const path = pathPrefix ? pathPrefix + '-' + i : String(i)
+      const node = nodes[i]
+      nodePathMap.set(node, path)
+
+      let span = 1
+      if (node.children && node.children.length > 0 && !coll.has(path)) {
+        span = calcSpan(node.children, path)
+        // 记录父子关系
+        for (const child of node.children) {
+          parentMap.set(child, { parent: node, parentPath: path })
+        }
+      }
+
+      const blockH = span * (nodeH + vGap) - vGap
+      const x = paddingLeft + depth * (nodeW + hGap)
+      const y = curY + blockH / 2 - nodeH / 2
+      nodePos.set(path, { x, y })
+
+      if (node.children && node.children.length > 0 && !coll.has(path)) {
+        layoutNodes(node.children, depth + 1, curY, path)
+      }
+
+      curY += blockH + vGap
+    }
+  }
+  layoutNodes(treeData, 0, paddingTop, '')
+
+  // 计算实际 SVG 尺寸
+  const rightEdge = paddingLeft + maxD * (nodeW + hGap) + nodeW + paddingRight
+  const svgW = Math.max(containerW, rightEdge)
+  const svgH = Math.max(containerH, paddingTop + totalTreeH + paddingBottom)
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" height="100%" style="overflow:visible">`
+
+  // 滤镜与渐变
+  svg += `<defs>
+    <filter id="${filterId}"><feDropShadow dx="1" dy="1.5" stdDeviation="2.5" flood-opacity="0.3"/></filter>
+    <linearGradient id="mm-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(99,102,241,0.04)"/>
+      <stop offset="100%" stop-color="rgba(15,23,42,0)"/>
+    </linearGradient>`
+
+  Object.entries(TYPE_COLORS).forEach(([t, c]) => {
+    svg += `<linearGradient id="mm-grad-${t}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${darken(c, 0.2)}"/>
+    </linearGradient>`
+  })
+  svg += `</defs>`
+
+  // 背景
+  svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="url(#mm-bg-grad)" rx="8"/>`
+
+  // 连线（平滑三次贝塞尔曲线，从左到右）
+  for (const [child, { parentPath }] of parentMap) {
+    const cp = nodePos.get(nodePathMap.get(child))
+    const pp = nodePos.get(parentPath)
+    if (!cp || !pp) continue
+    const x1 = pp.x + nodeW, y1 = pp.y + nodeH / 2
+    const x2 = cp.x, y2 = cp.y + nodeH / 2
+    const midX = (x1 + x2) / 2
+    svg += `<path class="mm-line" data-from="${parentPath}" data-to="${nodePathMap.get(child)}" d="M${x1} ${y1} C${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}" stroke="rgba(129,140,248,0.2)" stroke-width="1.5" fill="none"/>`
+  }
+
+  // 节点渲染：收集所有节点
+  const allNodes = []
+  nodePathMap.forEach((pathVal, nodeKey) => { allNodes.push({ node: nodeKey, path: pathVal }) })
+
+  // 按深度排序渲染（先画深层再画浅层，让深层节点在上层）
+  function getDepth(path) { return path.split('-').length - 1 }
+
+  for (const { node, path } of allNodes) {
+    const pos = nodePos.get(path)
+    if (!pos) continue
+
+    const d = getDepth(path)
+    const color = node.color || (node.type && TYPE_COLORS[node.type]) || LEVEL_COLORS[Math.min(d, LEVEL_COLORS.length - 1)]
+    const hasChildren = node.children && node.children.length > 0 && !coll.has(path)
+    const isCollapsed = node.children && node.children.length > 0 && coll.has(path)
+    const rx = d === 0 ? Math.min(20, nodeH / 2) : Math.min(10, nodeH / 3)
+
+    const displayName = truncateNodeName(node.name, d === 0 ? 12 : 8)
+    const maxChars = Math.floor(nodeW / (fontSize * 0.7)) - 1
+
+    let textContent = ''
+    if (displayName.length > maxChars) {
+      const line1 = displayName.substring(0, maxChars)
+      const line2 = displayName.substring(maxChars, maxChars * 2)
+      textContent = `<text x="${pos.x + nodeW / 2}" y="${pos.y + nodeH / 2 - 3}" text-anchor="middle" fill="#fff" font-size="${fontSize}" font-family="Microsoft YaHei,PingFang SC,sans-serif" font-weight="${d === 0 ? '700' : '500'}" style="pointer-events:none">${line1}<tspan x="${pos.x + nodeW / 2}" dy="${fontSize + 3}">${line2 || ''}</tspan></text>`
+    } else {
+      textContent = `<text x="${pos.x + nodeW / 2}" y="${pos.y + nodeH / 2 + 4}" text-anchor="middle" fill="#fff" font-size="${fontSize}" font-family="Microsoft YaHei,PingFang SC,sans-serif" font-weight="${d === 0 ? '700' : '500'}" style="pointer-events:none">${displayName}</text>`
+    }
+
+    const iconHtml = (node.icon && d === 1) ? `<text x="${pos.x + 12}" y="${pos.y + nodeH / 2 + 4}" font-size="${fontSize + 2}" style="pointer-events:none">${node.icon}</text>` : ''
+
+    const toggleHtml = hasChildren
+      ? `<circle cx="${pos.x + nodeW - 8}" cy="${pos.y + 8}" r="6" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)" stroke-width="1" style="pointer-events:none"/><text x="${pos.x + nodeW - 8}" y="${pos.y + 10}" text-anchor="middle" fill="#fff" font-size="9" style="pointer-events:none">−</text>`
+      : (isCollapsed
+        ? `<circle cx="${pos.x + nodeW - 8}" cy="${pos.y + 8}" r="6" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.35)" stroke-width="1" style="pointer-events:none"/><text x="${pos.x + nodeW - 8}" y="${pos.y + 10}" text-anchor="middle" fill="#fff" font-size="9" style="pointer-events:none">+</text>`
+        : '')
+
+    const gradId = node.type && TYPE_COLORS[node.type] ? `mm-grad-${node.type}` : ''
+    const fillAttr = gradId ? `url(#${gradId})` : color
+    const darkenBorder = darken(color, 0.2)
+
+    svg += `<g class="mm-node" data-path="${path}" data-has-children="${hasChildren || isCollapsed ? '1' : '0'}" style="cursor:${(hasChildren || isCollapsed) ? 'pointer' : 'default'}">
+      <rect x="${pos.x}" y="${pos.y}" width="${nodeW}" height="${nodeH}" rx="${rx}" fill="${fillAttr}" stroke="${darkenBorder}" stroke-width="1.5" filter="url(#${filterId})" class="mm-rect"/>
+      ${iconHtml}${textContent}${toggleHtml}
+    </g>`
   }
 
   svg += '</svg>'
   return svg
+}
+
+/** 颜色加深工具 */
+function darken(hex, f) {
+  if (!hex || !hex.startsWith('#')) return hex || '#6366f1'
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  return '#' + [r, g, b].map(v => Math.round(v * (1 - f)).toString(16).padStart(2, '0')).join('')
+}
+
+/** 重新渲染思维导图（收起/展开后调用） */
+function reRenderMindmap() {
+  if (!cachedMindmapTree || cachedMindmapTree.length === 0) return
+  if (!panelRef.value) return
+  const pr = panelRef.value.getBoundingClientRect()
+  cachedMindmapSvg = renderMindmapTree(cachedMindmapTree, pr.width, pr.height, mindmapCollapsed.value)
+  mindmapSvgContent.value = cachedMindmapSvg
+}
+
+// ====== 思维导图交互 ======
+
+/** SVG 点击：展开/收起节点子树 */
+function onMindmapSvgClick(e) {
+  const g = e.target.closest('.mm-node')
+  if (!g) return
+  const path = g.dataset.path
+  const hasChildren = g.dataset.hasChildren === '1'
+  if (!hasChildren) return
+
+  const newSet = new Set(mindmapCollapsed.value)
+  if (newSet.has(path)) {
+    newSet.delete(path) // 展开
+  } else {
+    newSet.add(path)    // 收起
+  }
+  mindmapCollapsed.value = newSet
+  reRenderMindmap()
+}
+
+/** 滚轮缩放 */
+function onMindmapWheel(e) {
+  const delta = e.deltaY > 0 ? -0.08 : 0.08
+  mindmapSvgScale.value = Math.max(0.4, Math.min(2.5, mindmapSvgScale.value + delta))
+}
+
+/** 鼠标拖拽平移 */
+function onMindmapPanStart(e) {
+  if (e.target.closest('.mm-node')) return // 节点上不触发平移
+  mindmapPanStart = { x: e.clientX, y: e.clientY, tx: mindmapSvgTx.value, ty: mindmapSvgTy.value }
+  document.addEventListener('mousemove', onMindmapPanMove)
+  document.addEventListener('mouseup', onMindmapPanEnd)
+}
+function onMindmapPanMove(e) {
+  if (!mindmapPanStart) return
+  mindmapSvgTx.value = mindmapPanStart.tx + (e.clientX - mindmapPanStart.x)
+  mindmapSvgTy.value = mindmapPanStart.ty + (e.clientY - mindmapPanStart.y)
+}
+function onMindmapPanEnd() {
+  mindmapPanStart = null
+  document.removeEventListener('mousemove', onMindmapPanMove)
+  document.removeEventListener('mouseup', onMindmapPanEnd)
+}
+
+/** 重置缩放 */
+function resetMindmapView() {
+  mindmapSvgScale.value = 1
+  mindmapSvgTx.value = 0
+  mindmapSvgTy.value = 0
 }
 
 // ====== MD 下载 ======
@@ -534,6 +715,8 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onResizeEnd)
   document.removeEventListener('mousemove', onTooltipDragMove)
   document.removeEventListener('mouseup', onTooltipDragEnd)
+  document.removeEventListener('mousemove', onMindmapPanMove)
+  document.removeEventListener('mouseup', onMindmapPanEnd)
 })
 </script>
 
@@ -681,10 +864,44 @@ onUnmounted(() => {
 .ai-mindmap-slide-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
 .ai-mindmap-loading { display: flex; align-items: center; gap: 12px; color: #64748b; font-size: 14px; }
 .ai-mindmap-empty { color: #475569; font-size: 14px; text-align: center; }
-.ai-mindmap-svg-wrap { width: 100%; height: 100%; min-height: 300px; }
-.ai-mindmap-svg-wrap svg { max-width: 100%; max-height: 100%; }
-.ai-mindmap-svg-wrap svg g:hover rect { filter: brightness(1.15) drop-shadow(0 0 12px rgba(99,102,241,0.3)); transition: all 0.2s ease; }
-.ai-mindmap-svg-wrap svg g { cursor: pointer; }
+.ai-mindmap-svg-wrap { width: 100%; height: 100%; min-height: 300px; cursor: grab; overflow: hidden; }
+.ai-mindmap-svg-wrap:active { cursor: grabbing; }
+.ai-mindmap-svg-inner { width: 100%; height: 100%; transition: transform 0.08s ease-out; }
+.ai-mindmap-svg-inner svg { max-width: 100%; max-height: 100%; }
+/* 节点悬停效果 */
+.ai-mindmap-svg-wrap svg .mm-rect { transition: filter 0.2s ease, opacity 0.2s ease; }
+.ai-mindmap-svg-wrap svg .mm-node:hover .mm-rect { filter: brightness(1.2) drop-shadow(0 0 16px rgba(129,140,248,0.45)) !important; }
+/* 连线动画 */
+.ai-mindmap-svg-wrap svg .mm-line { stroke-dasharray: 400; stroke-dashoffset: 400; animation: mmDashIn 0.6s ease forwards; }
+@keyframes mmDashIn { to { stroke-dashoffset: 0; } }
+/* 节点依次出现动画 */
+.ai-mindmap-svg-wrap svg .mm-node { animation: mmFadeIn 0.35s ease forwards; opacity: 0; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(1) { animation-delay: 0.05s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(2) { animation-delay: 0.1s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(3) { animation-delay: 0.15s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(4) { animation-delay: 0.2s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(5) { animation-delay: 0.25s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(6) { animation-delay: 0.3s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(7) { animation-delay: 0.35s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(8) { animation-delay: 0.4s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(9) { animation-delay: 0.45s; }
+.ai-mindmap-svg-wrap svg .mm-node:nth-child(10) { animation-delay: 0.5s; }
+@keyframes mmFadeIn { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
+
+/* 缩放控制条 */
+.ai-mindmap-zoom-bar {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 16px; border-top: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+  background: rgba(15,23,42,0.6); min-width: 320px;
+}
+.ai-mindmap-zoom-bar button {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  color: #94a3b8; width: 28px; height: 28px; border-radius: 6px;
+  cursor: pointer; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; font-family: inherit;
+}
+.ai-mindmap-zoom-bar button:hover { background: rgba(129,140,248,0.15); color: #e2e8f0; border-color: rgba(129,140,248,0.3); }
+.ai-mindmap-zoom-bar span { color: #64748b; font-size: 12px; width: 40px; text-align: center; }
 
 /* ====== 进度遮罩 ====== */
 .ai-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 2147483645; display: flex; align-items: center; justify-content: center; }

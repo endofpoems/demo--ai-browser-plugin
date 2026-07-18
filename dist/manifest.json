@@ -19,14 +19,14 @@
   "content_scripts": [
     {
       "js": [
-        "assets/main.js-loader-BZ_Qgmku.js"
+        "assets/main.js-loader-Ch1hkYX6.js"
       ],
       "matches": [
         "<all_urls>"
       ],
       "run_at": "document_end",
       "css": [
-        "assets/main-6Iim5SnM.css"
+        "assets/main-x6H38mPY.css"
       ]
     }
   ],
@@ -68,8 +68,8 @@
         "src/mindmap/index.html",
         "src/mindmap/*",
         "assets/storage-ud7VzXPD.js",
-        "assets/ai-7MHSAnXk.js",
-        "assets/main.js-B7aJaMSQ.js"
+        "assets/ai-CqgRUN5g.js",
+        "assets/main.js-Bhpjsy5p.js"
       ],
       "use_dynamic_url": false
     }
