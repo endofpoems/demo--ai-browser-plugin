@@ -22,6 +22,8 @@
 
 **流程**：点击箭头→`toggleMindmap`→展开时设置位置+触发动画→有缓存直接显示/无缓存加载生成→缓存 SVG。再次点击→width→0 动画→隐藏。
 
+**动画方案**：采用 `transition: width 0.35s cubic-bezier(0.4,0,0.2,1)` 模拟 el-collapse-transition 折叠展开效果。展开时 header/body 延迟 0.12s 后 opacity 从 0→1 淡入，收回时 width→0 自动裁剪内容。通过 `.ai-mindmap-open` class 控制内容可见性，避免 CSS 属性选择器脆弱性。
+
 ---
 
 ## 3. 思维导图跟随面板 Resize + 自适应

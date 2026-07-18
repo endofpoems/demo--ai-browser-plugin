@@ -87,3 +87,13 @@
 3. `<oli>` 行自动包裹 `<ol>`，`<li>` 行自动包裹 `<ul>`
 4. 混合有序/无序列表时自动关闭旧列表开启新列表
 5. 从第71行块级标签正则中移除 `li`
+
+---
+
+## Bug #009 - 拖动消息框时页面选中焦点残留导致冒出新弹窗
+
+**时间**：2026-07-18 | **状态**：已修复
+
+**现象**：拖拽 Tooltip 消息框结束后，页面原有选中文本焦点未清除，全局 `mouseup` 触发 `onMouseUp` 读取 `window.getSelection()` 创建新 Tooltip。
+**原因**：`onMouseUp` 未检查 `draggingTipId`（Tooltip 拖拽中），且 `onTooltipDragEnd` 未清除页面选中状态。`document.addEventListener('mouseup', onMouseUp)` 和 `document.addEventListener('mouseup', onTooltipDragEnd)` 同时触发。
+**修复**：1) `onMouseUp` guard 增加 `|| draggingTipId !== null`；2) `onTooltipDragEnd` 中调用 `window.getSelection().removeAllRanges()` 清除焦点。

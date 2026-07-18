@@ -69,12 +69,12 @@
     </div>
 
     <!-- 思维导图侧滑面板 -->
-    <div v-if="showMindmapPanel" class="ai-mindmap-slide" :class="mindmapAnimClass" :style="mindmapSlideStyle">
-      <!-- 收回箭头（在导图面板的外边缘） -->
+    <div v-if="showMindmapPanel" class="ai-mindmap-slide" :class="[mindmapAnimClass, { 'ai-mindmap-open': mindmapSlideStyle.width !== '0px' }]" :style="mindmapSlideStyle">
+      <!-- 收回箭头（与展开箭头同侧） -->
       <div class="ai-mindmap-arrow ai-mindmap-arrow-close"
-        :class="mindmapAnimClass === 'ai-mindmap-expand-right' ? 'ai-mindmap-arrow-left' : 'ai-mindmap-arrow-right'"
+        :class="mindmapAnimClass === 'ai-mindmap-expand-right' ? 'ai-mindmap-arrow-right' : 'ai-mindmap-arrow-left'"
         @click.stop="toggleMindmap" title="收回思维导图">
-        {{ mindmapAnimClass === 'ai-mindmap-expand-right' ? '&#9654;' : '&#9664;' }}
+        {{ mindmapAnimClass === 'ai-mindmap-expand-right' ? '&#9664;' : '&#9654;' }}
       </div>
       <div class="ai-mindmap-slide-header">
         <h2>思维导图</h2>
@@ -112,7 +112,9 @@ function hitTooltip(e) {
 }
 
 async function onMouseUp(e) {
-  if (!wordSummaryEnabled.value || preventNextTooltip) { preventNextTooltip = false; return }
+  if (!wordSummaryEnabled.value || preventNextTooltip || draggingTipId !== null) {
+    preventNextTooltip = false; return
+  }
   const selection = window.getSelection()
   const text = selection.toString().trim()
   if (!text || text.length > 300) return
@@ -172,6 +174,7 @@ function onTooltipDragMove(e) {
 }
 function onTooltipDragEnd() {
   draggingTipId = null
+  window.getSelection().removeAllRanges() // 清除拖拽残留的选中焦点
   document.removeEventListener('mousemove', onTooltipDragMove)
   document.removeEventListener('mouseup', onTooltipDragEnd)
 }
@@ -331,7 +334,16 @@ function closePanel() { showPanel.value = false; showMindmapPanel.value = false 
 /** 切换思维导图：有缓存直接显示，无缓存才加载 */
 async function toggleMindmap() {
   if (showMindmapPanel.value) {
-    // 收回
+    // 收回：滑向总结面板方向
+    if (!panelRef.value) { showMindmapPanel.value = false; return }
+    const pr = panelRef.value.getBoundingClientRect()
+    if (mindmapAnimClass.value === 'ai-mindmap-expand-right') {
+      // 面板在左边，导图在右边 → 向左滑回收回
+      mindmapSlideStyle.left = pr.right + 'px'
+    } else {
+      // 面板在右边，导图在左边 → 向右滑回收回
+      mindmapSlideStyle.left = (pr.left - 0) + 'px'
+    }
     mindmapSlideStyle.width = '0px'
     setTimeout(() => { showMindmapPanel.value = false }, 400)
     return
@@ -633,7 +645,7 @@ onUnmounted(() => {
 .ai-mindmap-arrow-right { right: -2px; border-radius: 0 6px 6px 0; }
 .ai-mindmap-arrow-close { background: linear-gradient(135deg, rgba(239,68,68,0.85), rgba(220,38,38,0.85)); }
 
-/* ====== 思维导图侧滑面板 ====== */
+/* ====== 思维导图侧滑面板（el-collapse-transition 折叠展开 + 内容淡入） ====== */
 .ai-mindmap-slide {
   position: fixed; width: 0; overflow: hidden;
   background: linear-gradient(170deg, rgba(15,23,42,0.99), rgba(30,41,59,0.97));
@@ -641,10 +653,18 @@ onUnmounted(() => {
   box-shadow: 0 0 0 1px rgba(129,140,248,0.05), 0 24px 80px rgba(0,0,0,0.6);
   z-index: 2147483645; display: flex; flex-direction: column;
   font-family: 'Inter','Microsoft YaHei','PingFang SC',sans-serif;
-  transition: width 0.4s cubic-bezier(0.16,1,0.3,1);
-  animation: mmPopIn 0.35s cubic-bezier(0.16,1,0.3,1);
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
-@keyframes mmPopIn { from { transform: scale(0.92); opacity: 0.6; } to { transform: scale(1); opacity: 1; } }
+/* 内容区折叠时透明，展开时淡入 */
+.ai-mindmap-slide .ai-mindmap-slide-header,
+.ai-mindmap-slide .ai-mindmap-slide-body {
+  opacity: 0;
+  transition: opacity 0.2s ease 0.12s;
+}
+.ai-mindmap-slide.ai-mindmap-open .ai-mindmap-slide-header,
+.ai-mindmap-slide.ai-mindmap-open .ai-mindmap-slide-body {
+  opacity: 1;
+}
 .ai-mindmap-expand-right { border-radius: 0 16px 16px 0; border-left: none; }
 .ai-mindmap-expand-left { border-radius: 16px 0 0 16px; border-right: none; }
 .ai-mindmap-slide-header {

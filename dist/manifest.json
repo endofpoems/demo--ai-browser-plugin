@@ -19,14 +19,14 @@
   "content_scripts": [
     {
       "js": [
-        "assets/main.js-loader-yKA5wJY5.js"
+        "assets/main.js-loader-BZ_Qgmku.js"
       ],
       "matches": [
         "<all_urls>"
       ],
       "run_at": "document_end",
       "css": [
-        "assets/main-CLQs4Yz7.css"
+        "assets/main-6Iim5SnM.css"
       ]
     }
   ],
@@ -69,7 +69,7 @@
         "src/mindmap/*",
         "assets/storage-ud7VzXPD.js",
         "assets/ai-7MHSAnXk.js",
-        "assets/main.js-Chq2rNiD.js"
+        "assets/main.js-B7aJaMSQ.js"
       ],
       "use_dynamic_url": false
     }
