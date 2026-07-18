@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 网页学习助手 — 智能网页内容分析插件</title>
+<style>
+  :root {
+    --bg: #0b1120; --card: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08); --text: #e2e8f0;
+    --muted: #94a3b8; --accent: #818cf8; --accent2: #a855f7;
+    --gradient: linear-gradient(135deg, #6366f1, #a855f7);
+    --max-w: 1080px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family: 'Inter',-apple-system,BlinkMacSystemFont,'Microsoft YaHei','PingFang SC',sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7;
+  }
+  a{color: var(--accent); text-decoration: none;}
+  a:hover{text-decoration: underline;}
+
+  /* ---------- Nav ---------- */
+  .nav{
+    position: fixed; top:0; left:0; right:0; z-index: 100;
+    background: rgba(11,17,32,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner{
+    max-width: var(--max-w); margin:0 auto; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo{font-size:18px;font-weight:700;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .nav-links{display:flex;gap:28px;list-style:none}
+  .nav-links a{color:var(--muted);font-size:14px;transition:color .2s}
+  .nav-links a:hover{color:var(--text);text-decoration:none}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    padding: 140px 24px 80px; text-align: center;
+    max-width: var(--max-w); margin: 0 auto;
+  }
+  .hero-badge{
+    display:inline-block; padding:4px 16px; border-radius:20px;
+    background:rgba(99,102,241,0.12); color:var(--accent); font-size:13px;
+    margin-bottom: 24px; border:1px solid rgba(99,102,241,0.2);
+  }
+  .hero h1{
+    font-size: clamp(32px, 6vw, 56px); font-weight: 800;
+    letter-spacing: -1px; margin-bottom: 20px;
+    background: var(--gradient); -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent; background-clip:text;
+  }
+  .hero p{
+    font-size: clamp(15px, 2.5vw, 19px); color: var(--muted);
+    max-width: 580px; margin: 0 auto 36px;
+  }
+  .hero-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:12px 28px; border-radius:10px; font-size:15px; font-weight:600;
+    cursor:pointer; border:none; transition:all .25s; font-family:inherit;
+  }
+  .btn-primary{background:var(--gradient);color:#fff;box-shadow:0 0 24px rgba(99,102,241,0.25)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 36px rgba(99,102,241,0.4)}
+  .btn-ghost{background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border)}
+  .btn-ghost:hover{background:rgba(255,255,255,0.1);color:var(--text)}
+
+  /* ---------- Sections ---------- */
+  .section{padding:80px 24px}
+  .section-inner{max-width:var(--max-w);margin:0 auto}
+  .section-label{
+    font-size:12px; font-weight:600; letter-spacing:2px;
+    color:var(--accent); text-transform:uppercase; margin-bottom:12px;
+  }
+  .section h2{
+    font-size:clamp(24px,4vw,36px);font-weight:700;margin-bottom:16px;
+  }
+  .section>p,.section-inner>p{color:var(--muted); max-width:600px; margin-bottom:48px}
+
+  /* ---------- Features Grid ---------- */
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+  .feature-card{
+    background: var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:28px; transition:border-color .25s;
+  }
+  .feature-card:hover{border-color:rgba(129,140,248,.3)}
+  .feature-icon{
+    width:44px;height:44px;border-radius:10px;display:flex;
+    align-items:center;justify-content:center;font-size:20px;
+    margin-bottom:16px;
+    background:linear-gradient(135deg,rgba(99,102,241,.15),rgba(139,92,246,.15));
+  }
+  .feature-card h3{font-size:16px;font-weight:600;margin-bottom:8px}
+  .feature-card p{color:var(--muted);font-size:14px;line-height:1.7}
+
+  /* ---------- Steps ---------- */
+  .steps{display:flex;gap:24px;flex-wrap:wrap}
+  .step{
+    flex:1; min-width:220px; text-align:center;
+    padding:32px 20px; border-radius:14px;
+    background:var(--card); border:1px solid var(--border);
+    position:relative;
+  }
+  .step-num{
+    width:40px;height:40px;border-radius:50%;display:flex;
+    align-items:center;justify-content:center;margin:0 auto 16px;
+    background:var(--gradient);color:#fff;font-size:17px;font-weight:700;
+  }
+  .step h3{font-size:16px;font-weight:600;margin-bottom:8px}
+  .step p{color:var(--muted);font-size:13px}
+
+  /* ---------- Shortcuts ---------- */
+  .shortcuts{display:flex;gap:20px;flex-wrap:wrap}
+  .kbd{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--card);border:1px solid var(--border);
+    border-radius:10px;padding:10px 18px;font-size:14px;
+  }
+  .kbd key{display:inline-block;background:rgba(255,255,255,0.08);border-radius:5px;padding:1px 8px;font-size:13px;font-family:monospace}
+  .kbd span{color:var(--muted)}
+
+  /* ---------- Install ---------- */
+  .install-box{
+    background:linear-gradient(160deg,rgba(15,23,42,.98),rgba(30,41,59,.96));
+    border:1px solid rgba(129,140,248,.15);border-radius:16px;
+    padding:40px 32px;text-align:center;max-width:620px;margin:0 auto;
+  }
+  .install-box ol{text-align:left;padding-left:24px;color:var(--muted);font-size:14px;line-height:2.2;margin-top:24px}
+  .install-box ol li::marker{color:var(--accent);font-weight:600}
+
+  /* ---------- Footer ---------- */
+  .footer{
+    border-top:1px solid var(--border); padding:32px 24px;
+    text-align:center; color:var(--muted); font-size:13px;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media(max-width:768px){
+    .nav-links{display:none}
+    .hero{padding:100px 20px 60px}
+    .section{padding:50px 20px}
+    .steps{flex-direction:column}
+    .shortcuts{flex-direction:column;align-items:center}
+    .install-box{padding:28px 20px}
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-logo">AI 网页学习助手</span>
+    <ul class="nav-links">
+      <li><a href="#features">功能</a></li>
+      <li><a href="#how">使用流程</a></li>
+      <li><a href="#install">安装</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">v2.0 · Chrome 扩展</div>
+  <h1>让 AI 帮你读懂<br>每一篇网页</h1>
+  <p>
+    一款 AI 驱动的 Chrome 浏览器插件，支持页面智能总结、树状思维导图生成、
+    划词链式解释和 Markdown 文件导出，让网页学习更高效。
+  </p>
+  <div class="hero-btns">
+    <a class="btn btn-primary" href="#install">⬇ 安装插件</a>
+    <a class="btn btn-ghost" href="#features">了解功能</a>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="section-label">核心功能</div>
+    <h2>四大核心能力</h2>
+    <p>从总结到可视化，覆盖网页学习的完整链路。</p>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <h3>页面智能总结</h3>
+        <p>一键调用 AI 对当前网页内容进行系统性归纳，围绕"是什么、为什么、使用场景、原理机制"四个维度展开，生成精炼的结构化总结。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🗺️</div>
+        <h3>树状思维导图</h3>
+        <p>基于页面总结自动生成树状思维导图，支持缩放、拖拽平移和节点折叠展开。技术类内容按"是什么/为什么/场景/优缺点"五维度分类着色。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>划词链式解释</h3>
+        <p>选中任意文本即可获得 AI 一句话解释。支持链式追问——对解释内容再次划词，弹出新消息框深入解析，实现层层递进的知识探索。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📥</div>
+        <h3>Markdown 一键导出</h3>
+        <p>将页面总结和思维导图一键导出为 Markdown 文件，方便保存到本地笔记工具或分享给他人，构建个人知识库。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="section" id="how" style="background:rgba(255,255,255,0.015)">
+  <div class="section-inner">
+    <div class="section-label">使用流程</div>
+    <h2>三步开始学习</h2>
+    <p>无需复杂配置，安装即用。</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>配置 API Key</h3>
+        <p>在插件设置中填入兼容 OpenAI 协议的 API 地址和密钥，支持任意兼容服务商。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>一键总结</h3>
+        <p>打开任意网页，点击插件图标或按 <strong>Alt+S</strong>，AI 将自动分析页面内容并生成结构化总结。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>深度探索</h3>
+        <p>展开思维导图可视化知识结构，使用划词功能（<strong>Alt+W</strong> 开关）深入理解任意概念，导出 Markdown 存档。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Shortcuts -->
+<section class="section">
+  <div class="section-inner">
+    <div class="section-label">快捷键</div>
+    <h2>高效操作</h2>
+    <p>键盘快捷键让你无需离开页面即可完成核心操作。</p>
+
+    <div class="shortcuts">
+      <div class="kbd">
+        <key>Alt</key> + <key>S</key>
+        <span>触发页面总结</span>
+      </div>
+      <div class="kbd">
+        <key>Alt</key> + <key>W</key>
+        <span>开启 / 关闭划词总结</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Install -->
+<section class="section" id="install" style="background:rgba(255,255,255,0.015)">
+  <div class="section-inner">
+    <div class="section-label">安装指南</div>
+    <h2>获取插件</h2>
+    <p>Chrome 开发者模式加载，一分钟完成。</p>
+
+    <div class="install-box">
+      <h3 style="font-size:16px;margin-bottom:8px">📦 手动安装步骤</h3>
+      <ol>
+        <li>下载项目源码并解压，进入项目根目录执行 <code>npm install && npm run build</code></li>
+        <li>打开 Chrome 浏览器，地址栏输入 <code>chrome://extensions/</code> 并回车</li>
+        <li>打开右上角 <strong>开发者模式</strong> 开关</li>
+        <li>点击 <strong>加载已解压的扩展程序</strong>，选择项目中的 <code>dist</code> 文件夹</li>
+        <li>点击浏览器工具栏中的插件图标，进入设置配置 API Key 即可使用</li>
+      </ol>
+      <p style="margin-top:20px;font-size:13px;color:var(--muted)">
+        支持所有兼容 OpenAI Chat Completions 协议的 API 服务
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <p>AI 网页学习助手 · Chrome Extension · Vue 3 + Vite 构建</p>
+  <p style="margin-top:6px">让每一次网页浏览都成为学习的机会</p>
+</footer>
+
+</body>
+</html>
